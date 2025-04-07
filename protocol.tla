@@ -7,8 +7,9 @@
 (* - A User process that encrypts a memo, constructs a transaction,        *)
 (*   and adds it to a transaction pool.                                    *)
 (* - A Node process that validates and commits transactions from the pool. *)
+(* To demostrate pruning, a random chunk is pruned from the bundle.        *)
 (* - A Scanner process that scans the blockchain, decrypts memo data,      *)
-(*   and verifies correctness.                                             *)
+(* and verifies correctness.                                               *)
 (* The module uses helper operators which are defined in the Operators     *)
 (* module.                                                                 *)
 (*                                                                         *)
@@ -25,7 +26,9 @@ memo == << "h", "e", "l", "l", "o", "w", "o", "r", "l", "d" >>
 \* Defines the maximum allowed number of memo chunks in a transaction.
 memo_chunk_limit == 64
 \* The fixed size of each chunk after splitting (and padding, if necessary).
-memo_chunk_size == 4
+memo_chunk_size == 6
+\* Representation of a pruned chunk.
+pruned_chunk == << "p", "r", "u", "n", "e", "d" >>
 
 (*--algorithm memo
 
@@ -50,7 +53,7 @@ begin
     Encrypt:
         \* Derive the encryption key from the memo key and salt using a (simplified) key derivation function.
         encryption_key := EncryptionKey(memo_key, salt);
-        \* Then, split the memo into fixed-size chunks (with padding on the final chunk) using SplitAndPadMemo.
+        \* Then, split the memo into fixed-size chunks (with padding on the final chunk) using `SplitAndPadMemo`.
         plaintext_memo_chunks := SplitAndPadMemo(memo, memo_chunk_size);
         \* Finally, encrypt each chunk using the derived encryption key.
         encrypted_memo_chunks := EncryptMemo(encryption_key, plaintext_memo_chunks);
@@ -78,7 +81,8 @@ fair process Node = "NODE"
 variables 
     tx, 
     valid = TRUE,
-    action;
+    action,
+    new_tx;
 begin
     ValidateTx:
         await txPool /= {};
@@ -97,6 +101,19 @@ begin
         if valid then
             blockchain := blockchain \cup {tx};
         end if;
+    Prune:
+        \* Construct a new transaction record with the updated memo bundle.
+        new_tx :=
+        [
+            tx EXCEPT !.v_memo_chunks =
+            [
+                tx.v_memo_chunks EXCEPT ![
+                    CHOOSE i \in DOMAIN tx.v_memo_chunks : tx.v_memo_chunks[i] =
+                        CHOOSE c \in ToSet(tx.v_memo_chunks) : TRUE
+            ].chunk = pruned_chunk ]
+        ];
+        \* Update the blockchain by replacing the original transaction with the pruned version.
+        blockchain := (blockchain \ {tx}) \cup {new_tx};
 end process;
 
 \* Scans for transactions belonging to the user and decrypts them
@@ -111,23 +128,26 @@ begin
         tx := CHOOSE t \in blockchain : \E a \in t.actions : a.receiver = "USER";
     Decrypt:
         \* Decrypt the memo bundle using the memo key and salt stored in the transaction.
-        \* The result should reconstruct the original memo if the encryption was successful.
         decrypted_memo := DecryptedMemoFinal(DecryptMemo(memo_key, tx.salt_or_hash, tx.v_memo_chunks));
-        assert memo = decrypted_memo;
+        \* If no pruning occurred, then decrypted_memo should equal memo.
+        \* If pruning occurred (e.g., the first chunk was pruned), then decrypted_memo should equal:
+        \* pruned_chunk concatenated with the remainder of memo.
+        assert (decrypted_memo = memo)
+               \/ (decrypted_memo = (pruned_chunk \o SubSeq(memo, memo_chunk_size+1, Len(memo))));
 end process;
 
 end algorithm; *)
-\* BEGIN TRANSLATION (chksum(pcal) = "ed9dfb75" /\ chksum(tla) = "db0161a6")
-\* Process variable tx of process Node at line 79 col 5 changed to tx_
-\* Process variable action of process Node at line 81 col 5 changed to action_
+\* BEGIN TRANSLATION (chksum(pcal) = "74add881" /\ chksum(tla) = "ec2d5972")
+\* Process variable tx of process Node at line 82 col 5 changed to tx_
+\* Process variable action of process Node at line 84 col 5 changed to action_
 CONSTANT defaultInitValue
 VARIABLES pc, txPool, blockchain, memo_key, salt, encryption_key, 
           plaintext_memo_chunks, encrypted_memo_chunks, tx_builder, tx_, 
-          valid, action_, tx, decrypted_memo, action
+          valid, action_, new_tx, tx, decrypted_memo, action
 
 vars == << pc, txPool, blockchain, memo_key, salt, encryption_key, 
            plaintext_memo_chunks, encrypted_memo_chunks, tx_builder, tx_, 
-           valid, action_, tx, decrypted_memo, action >>
+           valid, action_, new_tx, tx, decrypted_memo, action >>
 
 ProcSet == {"USER"} \cup {"NODE"} \cup {"SCANNER"}
 
@@ -145,6 +165,7 @@ Init == (* Global variables *)
         /\ tx_ = defaultInitValue
         /\ valid = TRUE
         /\ action_ = defaultInitValue
+        /\ new_tx = defaultInitValue
         (* Process Scanner *)
         /\ tx = defaultInitValue
         /\ decrypted_memo = defaultInitValue
@@ -159,7 +180,7 @@ Encrypt == /\ pc["USER"] = "Encrypt"
            /\ encrypted_memo_chunks' = EncryptMemo(encryption_key', plaintext_memo_chunks')
            /\ pc' = [pc EXCEPT !["USER"] = "BuildTx"]
            /\ UNCHANGED << txPool, blockchain, memo_key, salt, tx_builder, tx_, 
-                           valid, action_, tx, decrypted_memo, action >>
+                           valid, action_, new_tx, tx, decrypted_memo, action >>
 
 BuildTx == /\ pc["USER"] = "BuildTx"
            /\ tx_builder' = [
@@ -176,7 +197,7 @@ BuildTx == /\ pc["USER"] = "BuildTx"
            /\ pc' = [pc EXCEPT !["USER"] = "PushTx"]
            /\ UNCHANGED << txPool, blockchain, memo_key, salt, encryption_key, 
                            plaintext_memo_chunks, encrypted_memo_chunks, tx_, 
-                           valid, action_, tx, decrypted_memo, action >>
+                           valid, action_, new_tx, tx, decrypted_memo, action >>
 
 PushTx == /\ pc["USER"] = "PushTx"
           /\ txPool = {}
@@ -184,8 +205,8 @@ PushTx == /\ pc["USER"] = "PushTx"
           /\ pc' = [pc EXCEPT !["USER"] = "Done"]
           /\ UNCHANGED << blockchain, memo_key, salt, encryption_key, 
                           plaintext_memo_chunks, encrypted_memo_chunks, 
-                          tx_builder, tx_, valid, action_, tx, decrypted_memo, 
-                          action >>
+                          tx_builder, tx_, valid, action_, new_tx, tx, 
+                          decrypted_memo, action >>
 
 User == Encrypt \/ BuildTx \/ PushTx
 
@@ -204,12 +225,28 @@ ValidateTx == /\ pc["NODE"] = "ValidateTx"
                     THEN /\ blockchain' = (blockchain \cup {tx_'})
                     ELSE /\ TRUE
                          /\ UNCHANGED blockchain
-              /\ pc' = [pc EXCEPT !["NODE"] = "Done"]
+              /\ pc' = [pc EXCEPT !["NODE"] = "Prune"]
               /\ UNCHANGED << memo_key, salt, encryption_key, 
                               plaintext_memo_chunks, encrypted_memo_chunks, 
-                              tx_builder, tx, decrypted_memo, action >>
+                              tx_builder, new_tx, tx, decrypted_memo, action >>
 
-Node == ValidateTx
+Prune == /\ pc["NODE"] = "Prune"
+         /\ new_tx' = [
+                          tx_ EXCEPT !.v_memo_chunks =
+                          [
+                              tx_.v_memo_chunks EXCEPT ![
+                                   CHOOSE i \in DOMAIN tx_.v_memo_chunks : tx_.v_memo_chunks[i] =
+                                       CHOOSE c \in ToSet(tx_.v_memo_chunks) : TRUE
+                          ].chunk = pruned_chunk ]
+                      ]
+         /\ blockchain' = ((blockchain \ {tx_}) \cup {new_tx'})
+         /\ pc' = [pc EXCEPT !["NODE"] = "Done"]
+         /\ UNCHANGED << txPool, memo_key, salt, encryption_key, 
+                         plaintext_memo_chunks, encrypted_memo_chunks, 
+                         tx_builder, tx_, valid, action_, tx, decrypted_memo, 
+                         action >>
+
+Node == ValidateTx \/ Prune
 
 Scan == /\ pc["SCANNER"] = "Scan"
         /\ Cardinality(blockchain) > 0
@@ -217,17 +254,18 @@ Scan == /\ pc["SCANNER"] = "Scan"
         /\ pc' = [pc EXCEPT !["SCANNER"] = "Decrypt"]
         /\ UNCHANGED << txPool, blockchain, memo_key, salt, encryption_key, 
                         plaintext_memo_chunks, encrypted_memo_chunks, 
-                        tx_builder, tx_, valid, action_, decrypted_memo, 
-                        action >>
+                        tx_builder, tx_, valid, action_, new_tx, 
+                        decrypted_memo, action >>
 
 Decrypt == /\ pc["SCANNER"] = "Decrypt"
            /\ decrypted_memo' = DecryptedMemoFinal(DecryptMemo(memo_key, tx.salt_or_hash, tx.v_memo_chunks))
-           /\ Assert(memo = decrypted_memo', 
-                     "Failure of assertion at line 116, column 9.")
+           /\ Assert((decrypted_memo' = memo)
+                     \/ (decrypted_memo' = (pruned_chunk \o SubSeq(memo, memo_chunk_size+1, Len(memo)))), 
+                     "Failure of assertion at line 135, column 9.")
            /\ pc' = [pc EXCEPT !["SCANNER"] = "Done"]
            /\ UNCHANGED << txPool, blockchain, memo_key, salt, encryption_key, 
                            plaintext_memo_chunks, encrypted_memo_chunks, 
-                           tx_builder, tx_, valid, action_, tx, action >>
+                           tx_builder, tx_, valid, action_, new_tx, tx, action >>
 
 Scanner == Scan \/ Decrypt
 

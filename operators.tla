@@ -107,4 +107,11 @@ DecryptedMemoFinal(decryptedChunks) ==
 \* Verify that a transaction is valid.
 VerifyTx(tx) == TRUE
 
+ToSet(s) ==
+  (*************************************************************************)
+  (* The image of the given sequence s. Cardinality(ToSet(s)) <= Len(s)    *)
+  (* see https://en.wikipedia.org/wiki/Image_(mathematics)                 *)
+  (*************************************************************************)
+  { s[i] : i \in DOMAIN s }
+
 ====
