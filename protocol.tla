@@ -3,7 +3,7 @@
 (* NU7 memo bundles specification                                          *)
 (*                                                                         *)
 (* This module models a simplified version of the Orchard protocol's memo  *)
-(* encryption and decryption process as described in ZIP 231. It includes: *)
+(* encryption and decryption process as described in ZIP-231. It includes: *)
 (* - A User process that encrypts a memo, constructs a transaction,        *)
 (*   and adds it to a transaction pool.                                    *)
 (* - A Node process that validates and commits transactions from the pool. *)
@@ -148,9 +148,9 @@ begin
 end process;
 
 end algorithm; *)
-\* BEGIN TRANSLATION (chksum(pcal) = "a7105934" /\ chksum(tla) = "df47eb98")
-\* Process variable tx of process Node at line 82 col 5 changed to tx_
-\* Process variable action of process Node at line 84 col 5 changed to action_
+\* BEGIN TRANSLATION (chksum(pcal) = "c370ff21" /\ chksum(tla) = "bfc38815")
+\* Process variable tx of process Node at line 83 col 5 changed to tx_
+\* Process variable action of process Node at line 85 col 5 changed to action_
 CONSTANT defaultInitValue
 VARIABLES pc, txPool, blockchain, memo_key, salt, encryption_key, 
           plaintext_memo_chunks, encrypted_memo_chunks, tx_builder, tx_, 
@@ -194,6 +194,7 @@ Encrypt == /\ pc["USER"] = "Encrypt"
            /\ encryption_key' = EncryptionKey(memo_key, salt)
            /\ plaintext_memo_chunks' = SplitAndPadMemo(memo, memo_chunk_size)
            /\ encrypted_memo_chunks' = EncryptMemo(encryption_key', plaintext_memo_chunks')
+           /\ PrintT(encrypted_memo_chunks')
            /\ pc' = [pc EXCEPT !["USER"] = "BuildTx"]
            /\ UNCHANGED << txPool, blockchain, memo_key, salt, tx_builder, tx_, 
                            valid, action_, i_chosen, new_v_memo_chunks, 
@@ -281,7 +282,7 @@ Decrypt == /\ pc["SCANNER"] = "Decrypt"
            /\ decrypted_memo' = DecryptedMemoFinal(DecryptMemo(memo_key, tx.salt_or_hash, tx.v_memo_chunks))
            /\ Assert((decrypted_memo' = memo)
                      \/ (decrypted_memo' = (pruned_chunk \o SubSeq(memo, memo_chunk_size+1, Len(memo)))), 
-                     "Failure of assertion at line 146, column 9.")
+                     "Failure of assertion at line 147, column 9.")
            /\ pc' = [pc EXCEPT !["SCANNER"] = "Done"]
            /\ UNCHANGED << txPool, blockchain, memo_key, salt, encryption_key, 
                            plaintext_memo_chunks, encrypted_memo_chunks, 

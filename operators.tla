@@ -70,7 +70,7 @@ RandomHash(n) == [ i \in 1..n |-> CHOOSE x \in 0..255 : TRUE ]
 
 \* A simplified model of the key derivation function.
 \* In a real system, this would be a secure PRF applied to a constant concatenated with the salt.
-EncryptionKey(memo_key, salt) == Append(memo_key, salt)
+EncryptionKey(memo_key, salt) == [ memo_key |-> memo_key, salt |-> salt, randomness |-> RandomHash(2) ]
 
 \* Encrypt a memo chunk using an encryption key and a nonce.
 \* Here the nonce is abstracted as the chunk index.
