@@ -45,9 +45,8 @@ variables
     memo_key = RandomHash(32);
     \* Randomness salt used for key derivation.
     salt = RandomHash(32);
-
+    \* Decrypted memo after decryption.
     decrypted_memo = <<>>;
-
 define
     \* At least in 1 behaviour, no pruning occurred, decrypted_memo is equal memo.
     DecrypedEqOrig == Cardinality(blockchain) > 0 =>
