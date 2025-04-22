@@ -81,15 +81,23 @@ begin
         \* Construct the transaction
         tx_v6 :=
         [
-            f_all_pruned  |-> FALSE, \* No memo chunk is pruned at memo creation.
-            salt_or_hash  |-> salt, \* stores the salt used for key derivation
-            n_memo_chunks |-> Len(encrypted_memo_chunks), \* the number of memo chunks in the encrypted bundle.
-            pruned        |-> [ _i \in 1..Len(encrypted_memo_chunks) |-> 0 ], \* a sequence of 0's indicating no chunk is pruned.
-            v_memo_chunks |-> encrypted_memo_chunks, \* the encrypted memo chunks
+            \* No memo chunk is pruned at memo creation.
+            f_all_pruned  |-> FALSE,
+            \* Stores the salt used for key derivation
+            salt_or_hash  |-> salt,
+            \* The number of memo chunks in the encrypted bundle.
+            n_memo_chunks |-> Len(encrypted_memo_chunks),
+            \* A sequence of 0's indicating no chunk is pruned.
+            pruned        |-> [ _i \in 1..Len(encrypted_memo_chunks) |-> 0 ],
+            \* The encrypted memo chunks.
+            v_memo_chunks |-> encrypted_memo_chunks,
             actions       |-> {[
-                receiver |-> "USER", \* the receiver of the memo
-                memo_key |-> memo_key, \* the memo key used for encryption
-                amount   |-> 0 \* the amount of the transaction
+                \* The receiver of the memo is the user itself.
+                receiver |-> "USER",
+                \* The memo key used for encryption.
+                memo_key |-> memo_key,
+                \* The amount of the transaction is set to 0.
+                amount   |-> 0
             ]}
         ];
     PushTx:
@@ -153,7 +161,8 @@ begin
         tx := CHOOSE t \in blockchain : \E a \in t.actions : a.receiver = "USER";
     Decrypt:
         \* Decrypt the memo bundle using the memo key and salt stored in the transaction.
-        decrypted_memo := DecryptedMemoFinal(DecryptMemo(memo_key, tx.salt_or_hash, tx.v_memo_chunks));
+        decrypted_memo := 
+            DecryptedMemoFinal(DecryptMemo(memo_key, tx.salt_or_hash, tx.v_memo_chunks));
         \* If all chunks were pruned in transaction, then decrypted_memo should be all pruned, 
         \* and the `salt_or_hash` field should be a memo_bundle_digest.
         if tx.f_all_pruned = TRUE then
@@ -162,8 +171,8 @@ begin
 end process;
 
 end algorithm; *)
-\* BEGIN TRANSLATION (chksum(pcal) = "9e513778" /\ chksum(tla) = "810c1a86")
-\* Process variable tx of process Node at line 104 col 5 changed to tx_
+\* BEGIN TRANSLATION (chksum(pcal) = "4674289f" /\ chksum(tla) = "ae4b9f5e")
+\* Process variable tx of process Node at line 111 col 5 changed to tx_
 CONSTANT defaultInitValue
 VARIABLES pc, txPool, blockchain, memo_key, salt, decrypted_memo
 
@@ -220,14 +229,22 @@ Encrypt == /\ pc["USER"] = "Encrypt"
 
 BuildTx == /\ pc["USER"] = "BuildTx"
            /\ tx_v6' = [
+                       
                            f_all_pruned  |-> FALSE,
+                       
                            salt_or_hash  |-> salt,
+                       
                            n_memo_chunks |-> Len(encrypted_memo_chunks),
+                       
                            pruned        |-> [ _i \in 1..Len(encrypted_memo_chunks) |-> 0 ],
+                       
                            v_memo_chunks |-> encrypted_memo_chunks,
                            actions       |-> {[
+                       
                                receiver |-> "USER",
+                       
                                memo_key |-> memo_key,
+                       
                                amount   |-> 0
                            ]}
                        ]
@@ -251,11 +268,11 @@ ValidateTx == /\ pc["NODE"] = "ValidateTx"
               /\ tx_' = (CHOOSE transaction \in txPool : TRUE)
               /\ txPool' = txPool \ {tx_'}
               /\ Assert(Len(tx_'.v_memo_chunks) <= memo_chunk_limit, 
-                        "Failure of assertion at line 113, column 9.")
+                        "Failure of assertion at line 120, column 9.")
               /\ Assert((CHOOSE a \in tx_'.actions : TRUE).memo_key # <<>>, 
-                        "Failure of assertion at line 114, column 9.")
+                        "Failure of assertion at line 121, column 9.")
               /\ Assert(VerifyTx(tx_'), 
-                        "Failure of assertion at line 115, column 9.")
+                        "Failure of assertion at line 122, column 9.")
               /\ blockchain' = (blockchain \cup {tx_'})
               /\ pc' = [pc EXCEPT !["NODE"] = "PruneChunks"]
               /\ UNCHANGED << memo_key, salt, decrypted_memo, encryption_key, 
@@ -306,7 +323,7 @@ Decrypt == /\ pc["SCANNER"] = "Decrypt"
            /\ decrypted_memo' = DecryptedMemoFinal(DecryptMemo(memo_key, tx.salt_or_hash, tx.v_memo_chunks))
            /\ IF tx.f_all_pruned = TRUE
                  THEN /\ Assert(decrypted_memo' = (pruned_chunk \o pruned_chunk), 
-                                "Failure of assertion at line 161, column 13.")
+                                "Failure of assertion at line 168, column 13.")
                  ELSE /\ TRUE
            /\ pc' = [pc EXCEPT !["SCANNER"] = "Done"]
            /\ UNCHANGED << txPool, blockchain, memo_key, salt, encryption_key, 
