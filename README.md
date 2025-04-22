@@ -26,15 +26,20 @@ The cryptographic functions (e.g., EncryptionKey, EncryptMemo, DecryptMemo) are 
 
 ## Files
 
-- [protocol.tla](protocol.tla):
-    Contains the main PlusCal specification for the protocol, including the User, Node, and Scanner processes. A [pdf document](protocol.pdf) is also available.
+**[protocol.tla](protocol.tla)**
 
-- [operators.tla](operators.tla):
-    Contains helper operators for:
+Contains the main PlusCal specification for the protocol, including the User, Node, and Scanner processes.
+
+A [pdf document](protocol.pdf) is also available.
+
+**[operators.tla](operators.tla)**
+
+Contains helper operators for:
     - Random hash generation and basic arithmetic operations,
     - Sequence splitting, padding, and manipulation,
     - Cryptographic abstractions for key derivation, memo encryption, decryption, and high-level memo processing.
-    A [pdf document](Operators.pdf) is also available.
+
+A [pdf document](Operators.pdf) is also available.
 
 ## How to Run
 
